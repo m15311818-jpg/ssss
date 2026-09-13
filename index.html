@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Arrow Puzzle</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: #f0f4f8;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            color: #334e68;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        #level-indicator {
+            font-size: 22px;
+            font-weight: bold;
+            color: #102a43;
+            background: #e1e8ed;
+            padding: 8px 20px;
+            border-radius: 20px;
+            margin-bottom: 25px;
+        }
+        #game-container {
+            position: relative;
+            background: #ffffff;
+            padding: 15px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+        }
+        #grid {
+            display: grid;
+            position: relative;
+        }
+        .cell {
+            background: #f0f4f8;
+            border-radius: 12px;
+        }
+        .arrow {
+            background: #bcccdc;
+            color: #102a43;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            cursor: pointer;
+            position: absolute;
+            transition: transform 0.4s ease, opacity 0.4s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            font-size: 28px;
+        }
+        .arrow:active { background: #9fb3c8; }
+        .arrow.error {
+            animation: shake 0.3s ease-in-out;
+            background: #ffb3b3;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-6px); }
+            75% { transform: translateX(6px); }
+        }
+        #win-message {
+            display: none;
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255,255,255,0.95);
+            border-radius: 20px;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+        #win-message h2 { color: #243b53; margin-bottom: 20px; font-size: 22px; }
+        .btn {
+            padding: 12px 35px;
+            background: #486581;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        #controls {
+            margin-top: 25px;
+            width: 280px;
+        }
+        .btn-reset {
+            background: #bcccdc;
+            color: #102a43;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="level-indicator">المستوى 1</div>
+
+    <div id="game-container">
+        <div id="grid"></div>
+        <div id="win-message">
+            <h2>🎉 اكتمل المستوى بنجاح!</h2>
+            <button class="btn" onclick="nextLevel()">المستوى التالي</button>
+        </div>
+    </div>
+
+    <div id="controls">
+        <button class="btn btn-reset" onclick="resetLevel()">إعادة المحاولة 🔄</button>
+    </div>
+
+    <script>
+        const gridElement = document.getElementById('grid');
+        const winMessage = document.getElementById('win-message');
+        const levelIndicator = document.getElementById('level-indicator');
+        
+        let currentLevel = 1;
+        let rows = 3;
+        let cols = 3;
+        
+        // أبعاد ثابتة ومضمونة لأي هاتف بدلاً من الحساب التلقائي
+        const cellSize = 75; 
+        const gap = 10;
+        
+        let gridData = [];
+        let initialLevelSetup = [];
+
+        const directions = ['U', 'D', 'L', 'R'];
+        const arrowSymbols = { 'U': '↑', 'D': '↓', 'L': '←', 'R': '→' };
+
+        function updateLevelDifficulty() {
+            if (currentLevel <= 2) { rows = 3; cols = 3; }
+            else if (currentLevel <= 5) { rows = 4; cols = 4; }
+            else { rows = 5; cols = 5; }
+            
+            levelIndicator.innerText = `المستوى ${currentLevel}`;
+        }
+
+        function generateSolvableLevel() {
+            let tempGrid = Array(rows).fill(null).map(() => Array(cols).fill(null));
+            let steps = [];
+            let availableCells = [];
+            
+            for(let r=0; r<rows; r++) {
+                for(let c=0; c<cols; c++) availableCells.push({r, c});
+            }
+            
+            availableCells.sort(() => Math.random() - 0.5);
+
+            for (let cell of availableCells) {
+                let validDirs = [];
+                for (let d of directions) {
+                    if (isReversePathClear(cell.r, cell.c, d, tempGrid)) {
+                        validDirs.push(d);
+                    }
+                }
+                let chosenDir = validDirs.length > 0 ? validDirs[Math.floor(Math.random() * validDirs.length)] : directions[Math.floor(Math.random() * directions.length)];
+                tempGrid[cell.r][cell.c] = chosenDir;
+                steps.push({r: cell.r, c: cell.c, dir: chosenDir});
+            }
+
+            initialLevelSetup = steps;
+        }
+
+        function isReversePathClear(r, c, dir, tempGrid) {
+            if (dir === 'R') {
+                for (let i = c + 1; i < cols; i++) if (tempGrid[r][i] !== null) return false;
+            } else if (dir === 'L') {
+                for (let i = c - 1; i >= 0; i--) if (tempGrid[r][i] !== null) return false;
+            } else if (dir === 'D') {
+                for (let i = r + 1; i < rows; i++) if (tempGrid[i][c] !== null) return false;
+            } else if (dir === 'U') {
+                for (let i = r - 1; i >= 0; i--) if (tempGrid[i][c] !== null) return false;
+            }
+            return true;
+        }
+
+        function buildGridFromSetup() {
+            gridElement.innerHTML = '';
+            winMessage.style.display = 'none';
+            
+            // ضبط أبعاد الشبكة بناءً على المقاسات الثابتة المضمونة
+            gridElement.style.width = `${(cols * cellSize) + ((cols - 1) * gap)}px`;
+            gridElement.style.height = `${(rows * cellSize) + ((rows - 1) * gap)}px`;
+            gridElement.style.gridTemplateColumns = `repeat(${cols}, ${cellSize}px)`;
+            gridElement.style.gridTemplateRows = `repeat(${rows}, ${cellSize}px)`;
+
+            gridData = Array(rows).fill(null).map(() => Array(cols).fill(null));
+
+            // وضع الخلايا الخلفية الرمادية
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const bgCell = document.createElement('div');
+                    bgCell.className = 'cell';
+                    gridElement.appendChild(bgCell);
+                }
+            }
+
+            // وضع الأسهم فوق الخلايا مباشرة ومباشرة وبدون حسابات ديناميكية
+            initialLevelSetup.forEach(item => {
+                const arrow = document.createElement('div');
+                arrow.className = 'arrow';
+                arrow.style.width = `${cellSize}px`;
+                arrow.style.height = `${cellSize}px`;
+                arrow.innerText = arrowSymbols[item.dir];
+                
+                arrow.style.top = `${item.r * (cellSize + gap)}px`;
+                arrow.style.left = `${item.c * (cellSize + gap)}px`;
+                
+                arrow.dataset.row = item.r;
+                arrow.dataset.col = item.c;
+                arrow.dataset.dir = item.dir;
+
+                // دعم فوري للمس والنقر العادي
+                arrow.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    moveArrow(arrow);
+                });
+                arrow.addEventListener('click', () => moveArrow(arrow));
+                
+                gridElement.appendChild(arrow);
+                gridData[item.r][item.c] = arrow;
+            });
+        }
+
+        function moveArrow(arrow) {
+            if (arrow.dataset.moving === 'true') return;
+
+            const r = parseInt(arrow.dataset.row);
+            const c = parseInt(arrow.dataset.col);
+            const dir = arrow.dataset.dir;
+
+            if (isPathClear(r, c, dir)) {
+                arrow.dataset.moving = 'true';
+                gridData[r][c] = null;
+
+                let targetX = 0; let targetY = 0;
+                if (dir === 'R') targetX = 800;
+                if (dir === 'L') targetX = -800;
+                if (dir === 'D') targetY = 800;
+                if (dir === 'U') targetY = -800;
+
+                arrow.style.transform = `translate(${targetX}px, ${targetY}px)`;
+                arrow.style.opacity = '0';
+
+                setTimeout(() => {
+                    arrow.remove();
+                    checkWin();
+                }, 400);
+            } else {
+                arrow.classList.add('error');
+                setTimeout(() => arrow.classList.remove('error'), 300);
+            }
+        }
+
+        function isPathClear(r, c, dir) {
+            if (dir === 'R') {
+                for (let i = c + 1; i < cols; i++) if (gridData[r][i] !== null) return false;
+            } else if (dir === 'L') {
+                for (let i = c - 1; i >= 0; i--) if (gridData[r][i] !== null) return false;
+            } else if (dir === 'D') {
+                for (let i = r + 1; i < rows; i++) if (gridData[i][c] !== null) return false;
+            } else if (dir === 'U') {
+                for (let i = r - 1; i >= 0; i--) if (gridData[i][c] !== null) return false;
+            }
+            return true;
+        }
+
+        function checkWin() {
+            const remainingArrows = document.querySelectorAll('.arrow');
