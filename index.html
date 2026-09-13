@@ -45,18 +45,40 @@
         }
         .arrow {
             background: #bcccdc;
-            color: #102a43;
             border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-weight: bold;
             cursor: pointer;
             position: absolute;
             transition: transform 0.4s ease, opacity 0.4s;
             box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-            font-size: 28px;
         }
+        /* رسم رأس السهم هندسياً لضمان الظهور على كل الشاشات */
+        .arrow-icon {
+            width: 0;
+            height: 0;
+            border-left: 12px solid transparent;
+            border-right: 12px solid transparent;
+            border-bottom: 20px solid #102a43;
+            position: relative;
+        }
+        /* رسم جسم السهم */
+        .arrow-icon::after {
+            content: '';
+            position: absolute;
+            width: 8px;
+            height: 14px;
+            background-color: #102a43;
+            top: 20px;
+            left: -4px;
+        }
+        /* توجيه السهم برمجياً بناءً على الاتجاه */
+        .arrow[data-dir="U"] .arrow-icon { transform: rotate(0deg); }
+        .arrow[data-dir="R"] .arrow-icon { transform: rotate(90deg); }
+        .arrow[data-dir="D"] .arrow-icon { transform: rotate(180deg); }
+        .arrow[data-dir="L"] .arrow-icon { transform: rotate(270deg); }
+
         .arrow:active { background: #9fb3c8; }
         .arrow.error {
             animation: shake 0.3s ease-in-out;
@@ -125,21 +147,17 @@
         let rows = 3;
         let cols = 3;
         
-        // أبعاد ثابتة ومضمونة لأي هاتف بدلاً من الحساب التلقائي
         const cellSize = 75; 
         const gap = 10;
         
         let gridData = [];
         let initialLevelSetup = [];
-
         const directions = ['U', 'D', 'L', 'R'];
-        const arrowSymbols = { 'U': '↑', 'D': '↓', 'L': '←', 'R': '→' };
 
         function updateLevelDifficulty() {
             if (currentLevel <= 2) { rows = 3; cols = 3; }
             else if (currentLevel <= 5) { rows = 4; cols = 4; }
             else { rows = 5; cols = 5; }
-            
             levelIndicator.innerText = `المستوى ${currentLevel}`;
         }
 
@@ -151,21 +169,17 @@
             for(let r=0; r<rows; r++) {
                 for(let c=0; c<cols; c++) availableCells.push({r, c});
             }
-            
             availableCells.sort(() => Math.random() - 0.5);
 
             for (let cell of availableCells) {
                 let validDirs = [];
                 for (let d of directions) {
-                    if (isReversePathClear(cell.r, cell.c, d, tempGrid)) {
-                        validDirs.push(d);
-                    }
+                    if (isReversePathClear(cell.r, cell.c, d, tempGrid)) validDirs.push(d);
                 }
                 let chosenDir = validDirs.length > 0 ? validDirs[Math.floor(Math.random() * validDirs.length)] : directions[Math.floor(Math.random() * directions.length)];
                 tempGrid[cell.r][cell.c] = chosenDir;
                 steps.push({r: cell.r, c: cell.c, dir: chosenDir});
             }
-
             initialLevelSetup = steps;
         }
 
@@ -186,7 +200,6 @@
             gridElement.innerHTML = '';
             winMessage.style.display = 'none';
             
-            // ضبط أبعاد الشبكة بناءً على المقاسات الثابتة المضمونة
             gridElement.style.width = `${(cols * cellSize) + ((cols - 1) * gap)}px`;
             gridElement.style.height = `${(rows * cellSize) + ((rows - 1) * gap)}px`;
             gridElement.style.gridTemplateColumns = `repeat(${cols}, ${cellSize}px)`;
@@ -194,7 +207,6 @@
 
             gridData = Array(rows).fill(null).map(() => Array(cols).fill(null));
 
-            // وضع الخلايا الخلفية الرمادية
             for (let r = 0; r < rows; r++) {
                 for (let c = 0; c < cols; c++) {
                     const bgCell = document.createElement('div');
@@ -203,13 +215,11 @@
                 }
             }
 
-            // وضع الأسهم فوق الخلايا مباشرة ومباشرة وبدون حسابات ديناميكية
             initialLevelSetup.forEach(item => {
                 const arrow = document.createElement('div');
                 arrow.className = 'arrow';
                 arrow.style.width = `${cellSize}px`;
                 arrow.style.height = `${cellSize}px`;
-                arrow.innerText = arrowSymbols[item.dir];
                 
                 arrow.style.top = `${item.r * (cellSize + gap)}px`;
                 arrow.style.left = `${item.c * (cellSize + gap)}px`;
@@ -218,7 +228,11 @@
                 arrow.dataset.col = item.c;
                 arrow.dataset.dir = item.dir;
 
-                // دعم فوري للمس والنقر العادي
+                // إضافة أيقونة السهم المرسومة بالـ CSS بالداخل
+                const icon = document.createElement('div');
+                icon.className = 'arrow-icon';
+                arrow.appendChild(icon);
+
                 arrow.addEventListener('touchstart', (e) => {
                     e.preventDefault();
                     moveArrow(arrow);
@@ -264,14 +278,3 @@
             if (dir === 'R') {
                 for (let i = c + 1; i < cols; i++) if (gridData[r][i] !== null) return false;
             } else if (dir === 'L') {
-                for (let i = c - 1; i >= 0; i--) if (gridData[r][i] !== null) return false;
-            } else if (dir === 'D') {
-                for (let i = r + 1; i < rows; i++) if (gridData[i][c] !== null) return false;
-            } else if (dir === 'U') {
-                for (let i = r - 1; i >= 0; i--) if (gridData[i][c] !== null) return false;
-            }
-            return true;
-        }
-
-        function checkWin() {
-            const remainingArrows = document.querySelectorAll('.arrow');
